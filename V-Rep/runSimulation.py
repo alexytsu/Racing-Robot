@@ -37,22 +37,30 @@ if clientID!=-1:
     vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
 
     # get the camera
-    res, camera = vrep.simxGetObjectHandle(clientID, 'Vision_sensor', vrep.simx_opmode_blocking)
+    res, cameraLeft = vrep.simxGetObjectHandle(clientID, 'Camera_Left', vrep.simx_opmode_blocking)
+    res, cameraRight = vrep.simxGetObjectHandle(clientID, 'Camera_Right', vrep.simx_opmode_blocking)
     res, steerHandle = vrep.simxGetObjectHandle(clientID, 'steer_joint', vrep.simx_opmode_blocking)
     max_steer_angle = math.radians(30)
 
     # Now step a few times:
     while True:
         vrep.simxSynchronousTrigger(clientID);
-        res, resolution, image = vrep.simxGetVisionSensorImage(clientID, camera, 0, vrep.simx_opmode_blocking)
+        res, resolution, imageLeft = vrep.simxGetVisionSensorImage(clientID, cameraLeft, 0, vrep.simx_opmode_blocking)
+        res, resolution, imageRight = vrep.simxGetVisionSensorImage(clientID, cameraRight, 0, vrep.simx_opmode_blocking)
+        imgL = np.array(imageLeft,dtype=np.uint8)
+        imgL.resize([resolution[1], resolution[0], 3])
+        imgL = np.flip(imgL, axis=0)
+
+        imgR = np.array(imageRight,dtype=np.uint8)
+        imgR.resize([resolution[1], resolution[0], 3])
+        imgR = np.flip(imgR, axis=0)
+
+        img = np.concatenate((imgL,imgR), axis=0)
 
         if res == vrep.simx_return_ok:
             """
                 PROCESS THE IMAGE
             """
-            img = np.array(image,dtype=np.uint8)
-            img.resize([resolution[1], resolution[0], 3])
-            img = np.flip(img, axis=0)
 
             cannyMasked = cannyFilter(img)
             cannyMasked = applyROI(cannyMasked)
