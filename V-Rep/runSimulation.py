@@ -40,6 +40,7 @@ if clientID!=-1:
     res, cameraLeft = vrep.simxGetObjectHandle(clientID, 'Camera_Left', vrep.simx_opmode_blocking)
     res, cameraRight = vrep.simxGetObjectHandle(clientID, 'Camera_Right', vrep.simx_opmode_blocking)
     res, steerHandle = vrep.simxGetObjectHandle(clientID, 'steer_joint', vrep.simx_opmode_blocking)
+    res, motorHandle = vrep.simxGetObjectHandle(clientID, 'motor_joint', vrep.simx_opmode_blocking)
     max_steer_angle = math.radians(30)
 
     # Now step a few times:
@@ -55,7 +56,7 @@ if clientID!=-1:
         imgR.resize([resolution[1], resolution[0], 3])
         imgR = np.flip(imgR, axis=0)
 
-        img = np.concatenate((imgL,imgR), axis=0)
+        img = np.concatenate((imgL,imgR), axis=1)
 
         if res == vrep.simx_return_ok:
             """
@@ -63,7 +64,6 @@ if clientID!=-1:
             """
 
             cannyMasked = cannyFilter(img)
-            cannyMasked = applyROI(cannyMasked)
             processed = cv2.cvtColor(cannyMasked, cv2.COLOR_GRAY2BGR)
             processed = img & processed
             processed, mask, yellowMask, blueMask = colourFilter(processed)
@@ -108,14 +108,14 @@ if clientID!=-1:
                 print("Blue", e)
                 print(f"Moments: {len(moments)}, Centroids: {len(centroids)}, Contours: {len(contours)}")
 
+            height = img.shape[0]
+            width = img.shape[1] 
             steerangle = 0
             if blueAverageCentroid is not None and yellowAverageCentroid is not None:
                 bx, by = blueAverageCentroid
                 yx, yy = yellowAverageCentroid
                 centroid = (int(bx/2+yx/2), int(by/2+yy/2))
                 cv2.circle(processed, centroid, 5, (255,255,0), 3)
-                height = img.shape[0]
-                width = img.shape[1] 
                 x, y = centroid
                 offset = x - width/2
                 far = height - y
@@ -128,11 +128,12 @@ if clientID!=-1:
             elif blueAverageCentroid is not None:
                 steerangle = math.radians(-30)
 
+            cv2.line(processed, (int(width/2), 0), (int(width/2), height), (255,255,255), 2)
 
-            composite = np.concatenate((img, processed), axis=1)
+
+            composite = np.concatenate((img, processed), axis=0)
             tapes = np.concatenate((yellowMask, blueMask), axis=1)
             cv2.imshow("camera", composite)
-            cv2.imshow("tapes", tapes)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
             
@@ -140,6 +141,12 @@ if clientID!=-1:
                 CONTROL THE SIMULATION
             """
 
+            speed = 200
+
+            if abs(math.degrees(steerangle)) > 15:
+                speed = 10
+
+            vrep.simxSetJointTargetVelocity(clientID,motorHandle, speed, vrep.simx_opmode_blocking)
             vrep.simxSetJointTargetPosition(clientID,steerHandle, steerangle, vrep.simx_opmode_blocking)
 
 
